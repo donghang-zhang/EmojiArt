@@ -21,7 +21,15 @@ class EmojiArtDocumentStore: ObservableObject
     }
     
     func setName(_ name: String, for document: EmojiArtDocument) {
-        documentNames[document] = name
+        if let url = directory?.appendingPathComponent(name) {
+            if !documentNames.values.contains(name) {
+                removeDocument(document )
+                document.url = url
+                documentNames[document ] = name
+            }
+        } else {
+            documentNames[document] = name
+        }
     }
     
     var documents: [EmojiArtDocument] {
@@ -29,10 +37,20 @@ class EmojiArtDocumentStore: ObservableObject
     }
     
     func addDocument(named name: String = "Untitled") {
-        documentNames[EmojiArtDocument()] = name
+        let uniqueName = name.uniqued(withRespectTo: documentNames.values)
+        let document: EmojiArtDocument
+        if let url = directory?.appendingPathComponent(uniqueName) {
+            document = EmojiArtDocument(url: url)
+        } else {
+            document = EmojiArtDocument()
+        }
+        documentNames[document] = uniqueName
     }
 
     func removeDocument(_ document: EmojiArtDocument) {
+        if let name = documentNames[document], let url = directory?.appendingPathComponent(name) {
+            try? FileManager.default.removeItem(at: url)
+        }
         documentNames[document] = nil
     }
     
@@ -48,6 +66,23 @@ class EmojiArtDocumentStore: ObservableObject
             UserDefaults.standard.set(names.asPropertyList, forKey: defaultsKey)
         }
     }
+    
+    private var directory: URL?
+    
+    init(direcotry: URL) {
+        self.name = direcotry.lastPathComponent
+        self.directory = direcotry
+        do {
+            let documents = try FileManager.default.contentsOfDirectory(atPath: direcotry.path)
+            for document in documents {
+                let emojiArtDocument = EmojiArtDocument(url: direcotry.appendingPathComponent(document))
+                self.documentNames[emojiArtDocument] = document
+            }
+        } catch {
+            print("EmojiArtDocumentStore: Couldn't create store from directory \(direcotry): \(error.localizedDescription)")
+        }
+    }
+    
 }
 
 extension Dictionary where Key == EmojiArtDocument, Value == String {
